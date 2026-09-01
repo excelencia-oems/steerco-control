@@ -1516,8 +1516,8 @@ function renderFilterBar(){
           <option value="ambar" ${STATE.filterAlerta==='ambar'?'selected':''}>Alerta amarilla</option>
           <option value="rojo" ${STATE.filterAlerta==='rojo'?'selected':''}>Alerta roja</option>
         </select>
-        ${renderMultiFilter('sesiones', 'Toda sesión', STATE.sesiones, STATE.filterSesiones)}
-        ${renderMultiFilter('responsables', 'Todo responsable', STATE.directorio.filter(d=>d.rol!=='excelencia').map(d=>d.nombre), STATE.filterResponsables)}
+        ${renderMultiFilter('filterSesiones', 'Toda sesión', STATE.sesiones, STATE.filterSesiones)}
+        ${renderMultiFilter('filterResponsables', 'Todo responsable', STATE.directorio.filter(d=>d.rol!=='excelencia').map(d=>d.nombre), STATE.filterResponsables)}
         <select data-action="filter-tipo">
           <option value="todos" ${STATE.filterTipo==='todos'?'selected':''}>Todo tipo</option>
           ${STATE.tipos.map(t=>`<option value="${esc(t)}" ${STATE.filterTipo===t?'selected':''}>${esc(t)}</option>`).join('')}
@@ -1955,7 +1955,7 @@ function renderCategoryPanels(items, opts){
   const rows = items.map((v,i) => `
     <div class="follow-row">
       <div class="follow-name">${esc(v)}</div>
-      <div class="follow-projects">${STATE.projects.filter(p=>p[opts.fieldKey]===v).length} proyecto(s) asociados</div>
+      <div class="follow-projects">${STATE.projects.filter(p=>Array.isArray(p[opts.fieldKey]) ? p[opts.fieldKey].includes(v) : p[opts.fieldKey]===v).length} proyecto(s) asociados</div>
       <button class="btn sm danger" data-action="${opts.listAction}" data-idx="${i}">Quitar</button>
     </div>`).join('');
   return `
