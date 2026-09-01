@@ -1341,7 +1341,6 @@ function timeAgo(ts){
 function projectFreshness(ts){
   if(!ts) return { text:'—', title:'Sin registro de actualización', stale:false };
   const diffMs = Date.now() - ts;
-  console.log('DIAGNÓSTICO fresh — ts recibido:', ts, '| typeof:', typeof ts, '| Date.now():', Date.now(), '| diffMs:', diffMs);
   const s = Math.round(diffMs/1000);
   const min = Math.round(s/60);
   const h = Math.round(min/60);
