@@ -265,6 +265,31 @@ tbody tr:last-child td{border-bottom:none;}
 .modal-body{padding:18px 20px;}
 .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);}
 
+/* tutorial interactivo */
+.tutorial-backdrop{position:fixed;inset:0;background:rgba(15,20,30,.72);z-index:200;}
+.tutorial-highlight{
+  position:fixed;z-index:201;border-radius:10px;
+  box-shadow:0 0 0 9999px rgba(15,20,30,.72),0 0 0 3px var(--navy);
+  transition:top .25s ease,left .25s ease,width .25s ease,height .25s ease;
+  pointer-events:none;
+}
+.tutorial-card{
+  position:fixed;z-index:202;background:#fff;border-radius:14px;max-width:340px;width:calc(100vw - 32px);
+  box-shadow:0 16px 40px rgba(0,0,0,.35);padding:18px 20px;
+  transition:top .25s ease,left .25s ease;
+}
+.tutorial-card .tt-step{font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+.tutorial-card h4{font-family:var(--disp);font-size:15.5px;margin-bottom:8px;}
+.tutorial-card p{font-size:13px;color:var(--ink-soft);line-height:1.5;margin-bottom:16px;}
+.tutorial-card .tt-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.tutorial-card .tt-skip{font-size:12px;color:var(--ink-faint);background:none;border:none;cursor:pointer;padding:6px 4px;}
+.tutorial-card .tt-skip:hover{color:var(--rojo);}
+.tutorial-card .tt-nav{display:flex;gap:8px;}
+.tutorial-card .tt-nav button{padding:8px 14px;font-size:12.5px;}
+@media(max-width:600px){
+  .tutorial-card{left:16px !important;right:16px !important;width:auto;max-width:none;}
+}
+
 /* update seguimiento */
 .follow-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--bg);}
 .follow-row:last-child{border-bottom:none;}
@@ -519,7 +544,11 @@ async function fbGetAllProjects(){
   snap.forEach(d => {
     const data = d.data();
     if(data && data.value){
-      try{ out.push(JSON.parse(data.value)); }catch(e){}
+      try{
+        const parsed = JSON.parse(data.value);
+        parsed._updatedAt = data.updatedAt || null;
+        out.push(parsed);
+      }catch(e){}
     }
   });
   out.sort((a,b)=> (a.numero||0) - (b.numero||0));
@@ -1293,6 +1322,26 @@ function timeAgo(ts){
   return `hace ${Math.round(s/60)} min`;
 }
 
+function projectFreshness(ts){
+  if(!ts) return { text:'—', title:'Sin registro de actualización', stale:false };
+  const diffMs = Date.now() - ts;
+  const s = Math.round(diffMs/1000);
+  const min = Math.round(s/60);
+  const h = Math.round(min/60);
+  const d = Math.round(h/24);
+  let text;
+  if(s < 60) text = 'Actualizado ahora mismo';
+  else if(min < 60) text = `Actualizado hace ${min} min`;
+  else if(h < 24) text = `Actualizado hace ${h} h`;
+  else if(d === 1) text = 'Actualizado ayer';
+  else if(d < 7) text = `Actualizado hace ${d} días`;
+  else if(d < 30) text = `Actualizado hace ${Math.round(d/7)} sem`;
+  else text = `Actualizado hace ${Math.round(d/30)} mes(es)`;
+  const dt = new Date(ts);
+  const title = 'Última actualización: ' + dt.toLocaleString('es-CL', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  return { text, title, stale: d >= 14 };
+}
+
 function isExcelencia(){
   return !!(STATE.currentUser && STATE.currentUser.rol === 'excelencia');
 }
@@ -1429,6 +1478,7 @@ function renderTopbar(){
         <div class="user-chip">
           <div class="log-avatar">${initials(u.nombre)}</div>
           <span><b>${esc(u.nombre)}</b> · ${esc(u.area)}</span>
+          <button class="btn ghost sm" data-action="start-tutorial" title="Aprende a usar Steerco Control paso a paso">🎓 Tutorial</button>
           <button class="btn ghost sm" data-action="logout">Salir</button>
         </div>
       </div>
@@ -1543,6 +1593,7 @@ function renderListView(){
     const sem = semaforo(p);
     const al = alertaColor(p);
     const alComentario = (p.alerta && p.alerta.comentario) || '';
+    const fresh = projectFreshness(p._updatedAt);
     return `
     <tr data-action="open-detail" data-id="${p.id}">
       <td class="mono" style="color:var(--ink-faint);">${p.numero!=null?'#'+p.numero:'—'}</td>
@@ -1560,6 +1611,7 @@ function renderListView(){
       <td><span class="semaforo"><span class="dot ${sem}"></span></span></td>
       <td><span class="semaforo" ${alComentario?`title="${esc(alComentario)}"`:''}><span class="dot ${al}"></span></span></td>
       <td><span class="badge ${p.estado}">${p.estado==='activo'?'Activo':'Archivado'}</span></td>
+      <td class="mono" style="font-size:11.5px;${fresh.stale?'color:var(--ambar);font-weight:600;':'color:var(--ink-faint);'}" title="${esc(fresh.title)}">${esc(fresh.text)}</td>
     </tr>`;
   }).join('');
 
@@ -1567,6 +1619,7 @@ function renderListView(){
     const brecha = (p.avanceReal||0) - (p.avancePlan||0);
     const sem = semaforo(p);
     const al = alertaColor(p);
+    const fresh = projectFreshness(p._updatedAt);
     return `
     <div class="proj-card" data-action="open-detail" data-id="${p.id}">
       <div class="proj-card-top">
@@ -1587,6 +1640,9 @@ function renderListView(){
       <div class="proj-card-row">
         <span class="semaforo"><span class="dot ${sem}"></span> Avance</span>
         <span class="semaforo"><span class="dot ${al}"></span> Alerta</span>
+      </div>
+      <div class="proj-card-row">
+        <span class="mono" style="font-size:11px;${fresh.stale?'color:var(--ambar);font-weight:600;':'color:var(--ink-faint);'}" title="${esc(fresh.title)}">${esc(fresh.text)}</span>
       </div>
     </div>`;
   }).join('');
@@ -1636,6 +1692,7 @@ function renderListView(){
           <th class="sortable" data-action="sort-by" data-key="brecha">Brecha${sortArrow('brecha')}</th>
           <th>Avance</th><th>Alerta</th>
           <th class="sortable" data-action="sort-by" data-key="estado">Estado${sortArrow('estado')}</th>
+          <th>Actualizado</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -2162,6 +2219,7 @@ function handleAction(action, el){
       break;
     }
     case 'mf-clear': STATE[el.dataset.mf] = []; render(); break;
+    case 'start-tutorial': startTutorial(); break;
     case 'filter-tipo': STATE.filterTipo = el.value; render(); break;
     case 'filter-kpi': STATE.filterKpi = el.value; render(); break;
     case 'sort-by': setSortBy(el.dataset.key); break;
@@ -3364,6 +3422,140 @@ async function exportSingleProjectPPTX(p, btnEl){
     if(btnEl){ btnEl.textContent = original; btnEl.disabled = false; }
   }
 }
+/* ---------------- TUTORIAL INTERACTIVO ---------------- */
+function getTutorialSteps(){
+  const steps = [
+    { title:'Bienvenido a Steerco Control', text:'Este recorrido rápido te muestra las partes principales de la app. Puedes salir cuando quieras con "Salir del tutorial", y volver a iniciarlo desde el botón 🎓 Tutorial arriba a la derecha.', selector:null },
+    { title:'Barra superior', text:'Aquí ves tu nombre, tu área, y puedes moverte entre el Listado general, el Detalle de un proyecto, la Línea de Tiempo y el Seguimiento de actualización.', selector:'.topbar' },
+    { title:'Filtra la vista', text:'Filtra por estado, área, avance, alerta, sesión de seguimiento (puedes elegir varias a la vez) y responsable. Los filtros se combinan entre sí.', selector:'.filters' },
+    { title:'Crea un proyecto', text:'Desde aquí agregas un nuevo proyecto. Si tu perfil es de un área específica, se crea automáticamente asociado a esa área.', selector:'[data-action="open-new"]' },
+    { title:'El listado de proyectos', text:'Cada fila es un proyecto: su avance real vs. plan, alerta, y estado. Haz clic en cualquiera para abrir su ficha completa, con Gantt, highlights, riesgos y presupuesto.', selectors:['.table-scroll','.proj-card-list'] },
+  ];
+  if(typeof isExcelencia === 'function' && isExcelencia()){
+    steps.push({ title:'Administración', text:'Como Excelencia Operacional, aquí gestionas el equipo con acceso, las áreas, las sesiones de seguimiento y otras categorías del sistema.', selector:'[data-action="go-equipo"]' });
+  }
+  steps.push({ title:'¡Listo!', text:'Eso es todo por ahora. Puedes repetir este recorrido cuando quieras desde el botón 🎓 Tutorial.', selector:null });
+  return steps;
+}
+
+function findTutorialTarget(step){
+  const candidates = step.selectors || (step.selector ? [step.selector] : []);
+  for(const sel of candidates){
+    const el = document.querySelector(sel);
+    if(el){
+      const r = el.getBoundingClientRect();
+      if(r.width > 0 && r.height > 0) return el;
+    }
+  }
+  return null;
+}
+
+let TUT = { active:false, step:0, steps:[] };
+
+function startTutorial(){
+  TUT.steps = getTutorialSteps();
+  TUT.step = 0;
+  TUT.active = true;
+  renderTutorialStep();
+  window.addEventListener('resize', repositionTutorial);
+}
+
+function closeTutorial(){
+  TUT.active = false;
+  window.removeEventListener('resize', repositionTutorial);
+  const bd = document.getElementById('tutBackdrop'); if(bd) bd.remove();
+  const hl = document.getElementById('tutHighlight'); if(hl) hl.remove();
+  const cd = document.getElementById('tutCard'); if(cd) cd.remove();
+}
+
+function repositionTutorial(){
+  if(!TUT.active) return;
+  renderTutorialStep(true);
+}
+
+function renderTutorialStep(repositionOnly){
+  if(!repositionOnly){
+    const old = document.getElementById('tutBackdrop'); if(old) old.remove();
+    const oldH = document.getElementById('tutHighlight'); if(oldH) oldH.remove();
+    const oldC = document.getElementById('tutCard'); if(oldC) oldC.remove();
+  }
+  const step = TUT.steps[TUT.step];
+  const isFirst = TUT.step === 0;
+  const isLast = TUT.step === TUT.steps.length - 1;
+
+  let backdrop = document.getElementById('tutBackdrop');
+  if(!backdrop){
+    backdrop = document.createElement('div');
+    backdrop.id = 'tutBackdrop';
+    backdrop.className = 'tutorial-backdrop';
+    document.body.appendChild(backdrop);
+  }
+
+  let highlight = document.getElementById('tutHighlight');
+  const target = findTutorialTarget(step);
+
+  if(target){
+    if(!highlight){
+      highlight = document.createElement('div');
+      highlight.id = 'tutHighlight';
+      highlight.className = 'tutorial-highlight';
+      document.body.appendChild(highlight);
+    }
+    const r = target.getBoundingClientRect();
+    const pad = 8;
+    highlight.style.top = (r.top - pad) + 'px';
+    highlight.style.left = (r.left - pad) + 'px';
+    highlight.style.width = (r.width + pad*2) + 'px';
+    highlight.style.height = (r.height + pad*2) + 'px';
+    highlight.style.display = 'block';
+  } else if(highlight){
+    highlight.style.display = 'none';
+  }
+
+  let card = document.getElementById('tutCard');
+  if(!card){
+    card = document.createElement('div');
+    card.id = 'tutCard';
+    card.className = 'tutorial-card';
+    document.body.appendChild(card);
+  }
+  card.innerHTML = `
+    <div class="tt-step">Paso ${TUT.step+1} de ${TUT.steps.length}</div>
+    <h4>${esc(step.title)}</h4>
+    <p>${esc(step.text)}</p>
+    <div class="tt-actions">
+      <button type="button" class="tt-skip" id="tutSkip">Salir del tutorial</button>
+      <div class="tt-nav">
+        ${!isFirst ? '<button type="button" class="btn sm" id="tutPrev">← Anterior</button>' : ''}
+        <button type="button" class="btn primary sm" id="tutNext">${isLast ? 'Finalizar' : 'Siguiente →'}</button>
+      </div>
+    </div>`;
+
+  // posicionar la tarjeta: centrada si no hay target, o pegada al target
+  if(target){
+    const r = target.getBoundingClientRect();
+    const cardW = 340, margin = 14;
+    let top = r.bottom + margin;
+    let left = Math.min(Math.max(r.left, margin), window.innerWidth - cardW - margin);
+    if(top + 200 > window.innerHeight){ top = Math.max(r.top - 210, margin); }
+    card.style.top = top + 'px';
+    card.style.left = left + 'px';
+    card.style.transform = 'none';
+  } else {
+    card.style.top = '50%';
+    card.style.left = '50%';
+    card.style.transform = 'translate(-50%,-50%)';
+  }
+
+  document.getElementById('tutSkip').onclick = closeTutorial;
+  document.getElementById('tutNext').onclick = () => {
+    if(isLast){ closeTutorial(); return; }
+    TUT.step++; renderTutorialStep();
+  };
+  const prevBtn = document.getElementById('tutPrev');
+  if(prevBtn) prevBtn.onclick = () => { TUT.step--; renderTutorialStep(); };
+}
+
 loadData();
 </script>
 </body>
