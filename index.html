@@ -547,6 +547,7 @@ async function fbGetAllProjects(){
       try{
         const parsed = JSON.parse(data.value);
         parsed._updatedAt = data.updatedAt || null;
+        if(out.length === 0) console.log('DIAGNÓSTICO fbGetAllProjects — doc.id:', d.id, '| data.updatedAt (crudo de Firestore) =', data.updatedAt, '| typeof =', typeof data.updatedAt, '| parsed._updatedAt asignado =', parsed._updatedAt);
         out.push(parsed);
       }catch(e){}
     }
@@ -1588,12 +1589,13 @@ function renderListView(){
   const acounts = {verde:0,ambar:0,rojo:0};
   activos.forEach(p => acounts[alertaColor(p)]++);
 
-  const rows = visibles.map(p => {
+  const rows = visibles.map((p, i) => {
     const brecha = (p.avanceReal||0) - (p.avancePlan||0);
     const sem = semaforo(p);
     const al = alertaColor(p);
     const alComentario = (p.alerta && p.alerta.comentario) || '';
     const fresh = projectFreshness(p._updatedAt);
+    if(i === 0) console.log('DIAGNÓSTICO Actualizado — proyecto:', p.nombre, '| p._updatedAt =', p._updatedAt, '| typeof =', typeof p._updatedAt, '| objeto completo tiene la propiedad?', Object.prototype.hasOwnProperty.call(p, '_updatedAt'));
     return `
     <tr data-action="open-detail" data-id="${p.id}">
       <td class="mono" style="color:var(--ink-faint);">${p.numero!=null?'#'+p.numero:'—'}</td>
