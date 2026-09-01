@@ -1185,6 +1185,18 @@ async function loadData(){
   startRealtimeSync();
 }
 
+async function saveProject(p){
+  /* Guarda solo el proyecto que realmente cambió, para que su fecha de "Actualizado"
+     refleje su propia edición y no se contagie a los demás proyectos. */
+  try{
+    await fbSaveProject(p);
+  }catch(e){
+    console.error('No se pudo guardar el proyecto:', p.nombre, e);
+    alert(`No se pudo guardar "${p.nombre}". Revisá tu conexión e intentá de nuevo.\n\n${(e && e.message) ? e.message : String(e)}`);
+  }
+  STATE.lastSync = Date.now();
+}
+
 async function saveData(){
   /* Guarda cada proyecto en su propio documento (no todos juntos), así una foto
      grande en un proyecto nunca puede romper el guardado de los demás.
@@ -1329,6 +1341,7 @@ function timeAgo(ts){
 function projectFreshness(ts){
   if(!ts) return { text:'—', title:'Sin registro de actualización', stale:false };
   const diffMs = Date.now() - ts;
+  console.log('DIAGNÓSTICO fresh — ts recibido:', ts, '| typeof:', typeof ts, '| Date.now():', Date.now(), '| diffMs:', diffMs);
   const s = Math.round(diffMs/1000);
   const min = Math.round(s/60);
   const h = Math.round(min/60);
@@ -2256,7 +2269,7 @@ function handleAction(action, el){
       ], async (vals, proj) => {
         proj.etapa = vals.etapa;
         logCambio(proj, `Cambió la etapa a ${vals.etapa}`);
-        await saveData();
+        await saveProject(proj);
       });
       break;
     }
@@ -2269,7 +2282,7 @@ function handleAction(action, el){
         proj.avanceReal = Math.max(0, Math.min(100, Number(vals.avanceReal)||0));
         proj.avancePlan = Math.max(0, Math.min(100, Number(vals.avancePlan)||0));
         logCambio(proj, `Actualizó avance a ${proj.avanceReal}% real / ${proj.avancePlan}% plan`);
-        await saveData();
+        await saveProject(proj);
       });
       break;
     }
@@ -2286,7 +2299,7 @@ function handleAction(action, el){
       ], async (vals, proj) => {
         proj.alerta = {color:vals.color, comentario:(vals.comentario||'').trim()};
         logCambio(proj, `Cambió la alerta a ${vals.color}`);
-        await saveData();
+        await saveProject(proj);
       });
       break;
     }
@@ -2300,7 +2313,7 @@ function handleAction(action, el){
         proj.presupuesto = Math.max(0, Number(vals.presupuesto)||0);
         proj.ejecutado = Math.max(0, Number(vals.ejecutado)||0);
         logCambio(proj, `Actualizó presupuesto: target ${fmtMoney(proj.presupuesto)}, ejecutado ${fmtMoney(proj.ejecutado)}`);
-        await saveData();
+        await saveProject(proj);
       });
       break;
     }
@@ -2359,7 +2372,7 @@ function quickUploadPhoto(projectId){
       p.imagen = dataUrl;
       p.historial = p.historial || [];
       p.historial.push({id:uid('l'), fecha:todayISO(), usuario:STATE.currentUser.nombre, cambio:'Actualizó la foto del proyecto'});
-      await saveData();
+      await saveProject(p);
       render();
     }catch(err){
       console.error(err);
@@ -2469,6 +2482,7 @@ async function importProjectsFromJSON(file){
     return;
   }
   let importados = 0, omitidos = 0, duplicados = 0;
+  const nuevos = [];
   for(const raw of data){
     if(!raw || !raw.nombre || !String(raw.nombre).trim()){ omitidos++; continue; }
     const nombreLimpio = String(raw.nombre).trim();
@@ -2502,10 +2516,11 @@ async function importProjectsFromJSON(file){
       historial: [{id:uid('l'), fecha:todayISO(), usuario:STATE.currentUser.nombre, cambio:'Proyecto importado desde archivo JSON'}]
     };
     STATE.projects.push(p);
+    nuevos.push(p);
     importados++;
   }
-  if(importados > 0){
-    await saveData();
+  if(nuevos.length > 0){
+    for(const p of nuevos){ await saveProject(p); }
   }
   render();
   alert(`Importación terminada: ${importados} proyecto(s) agregado(s)` +
@@ -2574,7 +2589,7 @@ async function setEstado(id, estado){
   p.estado = estado;
   p.historial = p.historial || [];
   p.historial.push({id:uid('l'), fecha:todayISO(), usuario:STATE.currentUser.nombre, cambio: estado==='archivado' ? 'Proyecto dado de baja del seguimiento activo' : 'Proyecto reactivado en el seguimiento'});
-  await saveData();
+  await saveProject(p);
   render();
 }
 
@@ -2912,7 +2927,7 @@ function openProjectModal(project){
       if(isNew){
         STATE.projects.push(p);
       }
-      await saveData();
+      await saveProject(p);
       ov.remove();
       STATE.selectedId = p.id;
       STATE.view = 'detail';
@@ -2981,7 +2996,7 @@ function openGanttQuickEdit(projectId, hitoId){
       h.nombre = nombre; h.inicio = inicio; h.fin = fin;
       p.historial = p.historial || [];
       p.historial.push({id:uid('l'), fecha:todayISO(), usuario:STATE.currentUser.nombre, cambio:`Ajustó fechas de plan de "${nombre}" a ${fmtDate(inicio)} → ${fmtDate(fin)}`});
-      await saveData();
+      await saveProject(p);
       ov.remove();
       render();
     };
