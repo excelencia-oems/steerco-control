@@ -81,7 +81,7 @@ body{
 /* ---------- panel/card ---------- */
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);}
 .panel + .panel{margin-top:16px;}
-.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);min-height:52px;flex-wrap:nowrap;gap:10px;box-sizing:border-box;}
 .panel-head h2{font-family:var(--disp);font-size:15px;font-weight:600;margin:0;}
 .panel-body{padding:16px 18px;}
 
@@ -1951,6 +1951,7 @@ function renderTeamView(){
       <div class="follow-name">${esc(d.nombre)}</div>
       <div class="follow-projects">${esc(d.area)} · ${d.rol==='excelencia' ? 'Excelencia Operacional (acceso total, con clave)' : ('Área (crea y actualiza sus proyectos)' + (d.clave ? ' · con clave' : ' · sin clave'))}</div>
       ${d.rol!=='excelencia' ? `<button class="btn sm" data-action="set-password" data-idx="${i}">${d.clave?'Cambiar clave':'Poner clave'}</button>` : ''}
+      ${d.rol!=='excelencia' ? `<button class="btn sm ghost" data-action="change-area" data-idx="${i}">Cambiar área</button>` : ''}
       <button class="btn sm danger" data-action="remove-person" data-idx="${i}">Quitar</button>
     </div>`).join('');
 
@@ -2122,6 +2123,7 @@ function handleAction(action, el){
     case 'add-person': addPerson(); break;
     case 'remove-person': removePerson(Number(el.dataset.idx)); break;
     case 'set-password': setPersonPassword(Number(el.dataset.idx)); break;
+    case 'change-area': changePersonArea(Number(el.dataset.idx)); break;
     case 'add-area': addArea(); break;
     case 'reset-seed-data': resetToSeedData(); break;
     case 'import-projects-btn': { const f = document.getElementById('import-projects-file'); if(f) f.click(); break; }
@@ -2410,6 +2412,19 @@ async function setPersonPassword(idx){
     {key:'clave', label:'Nueva clave (dejar vacío para quitarla)', type:'text', value: entry.clave||''}
   ], async (vals) => {
     entry.clave = vals.clave.trim() || null;
+    await saveDirectorio();
+  });
+}
+
+async function changePersonArea(idx){
+  if(!isExcelencia()) return;
+  const entry = STATE.directorio[idx];
+  if(!entry || entry.rol === 'excelencia') return;
+  openQuickEdit(null, `Cambiar área — ${entry.nombre}`, [
+    {key:'area', label:'Nueva área', type:'select', value: entry.area,
+      options: STATE.areas.map(a=>({value:a, label:a}))}
+  ], async (vals) => {
+    entry.area = vals.area;
     await saveDirectorio();
   });
 }
