@@ -87,6 +87,37 @@ body{
 
 /* ---------- filters ---------- */
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+
+.multifilter{position:relative;}
+.multifilter-btn{
+  font-family:var(--sans);font-size:13px;color:var(--ink);
+  background:#fff;border:1px solid var(--border-strong);border-radius:7px;
+  padding:7px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.multifilter-btn.active{border-color:var(--navy);color:var(--navy);font-weight:600;}
+.multifilter-btn .mf-caret{font-size:10px;opacity:0.7;}
+.multifilter-panel{
+  position:absolute;top:calc(100% + 4px);left:0;z-index:40;min-width:230px;max-height:280px;overflow-y:auto;
+  background:#fff;border:1px solid var(--border-strong);border-radius:9px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.12);padding:8px;
+}
+.mf-option{display:flex;align-items:center;gap:8px;padding:6px 6px;font-size:12.5px;cursor:pointer;border-radius:6px;}
+.mf-option:hover{background:var(--bg);}
+.mf-option input{margin:0;}
+.mf-empty{font-size:12px;color:var(--ink-soft);padding:8px 6px;}
+.mf-clear{
+  width:100%;margin-top:6px;padding:7px;border:none;border-top:1px solid var(--border);
+  background:none;color:var(--navy);font-size:12px;font-weight:600;cursor:pointer;
+}
+.mf-clear:hover{text-decoration:underline;}
+
+.form-checkgroup{
+  display:flex;flex-direction:column;gap:2px;max-height:160px;overflow-y:auto;
+  border:1px solid var(--border-strong);border-radius:7px;padding:6px;background:#fff;
+}
+.fc-option{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:13px;cursor:pointer;border-radius:6px;}
+.fc-option:hover{background:var(--bg);}
+.fc-option input{margin:0;}
 select,input[type=text],input[type=date],input[type=number],textarea{
   font-family:var(--sans);font-size:13px;color:var(--ink);
   background:#fff;border:1px solid var(--border-strong);border-radius:7px;
@@ -535,7 +566,9 @@ let STATE = {
   filterEstado: 'activo',
   filterSemaforo: 'todos',
   filterAlerta: 'todos',
-  filterSesion: 'todos',
+  filterSesiones: [],
+  filterResponsables: [],
+  openMultiFilter: null,
   filterTipo: 'todos',
   filterKpi: 'todos',
   sortBy: 'numero',
@@ -1414,7 +1447,8 @@ function filteredProjects(){
     if(STATE.filterArea !== 'todas' && p.area !== STATE.filterArea) return false;
     if(STATE.filterSemaforo !== 'todos' && semaforo(p) !== STATE.filterSemaforo) return false;
     if(STATE.filterAlerta !== 'todos' && alertaColor(p) !== STATE.filterAlerta) return false;
-    if(STATE.filterSesion !== 'todos' && (p.sesion||'') !== STATE.filterSesion) return false;
+    if(STATE.filterSesiones.length && !(p.sesiones||[]).some(s => STATE.filterSesiones.includes(s))) return false;
+    if(STATE.filterResponsables.length && !STATE.filterResponsables.some(nombre => (p.responsable||'').includes(nombre))) return false;
     if(STATE.filterTipo !== 'todos' && (p.tipoProyecto||'') !== STATE.filterTipo) return false;
     if(STATE.filterKpi !== 'todos' && (p.kpiDriver||'') !== STATE.filterKpi) return false;
     return true;
@@ -1482,10 +1516,8 @@ function renderFilterBar(){
           <option value="ambar" ${STATE.filterAlerta==='ambar'?'selected':''}>Alerta amarilla</option>
           <option value="rojo" ${STATE.filterAlerta==='rojo'?'selected':''}>Alerta roja</option>
         </select>
-        <select data-action="filter-sesion">
-          <option value="todos" ${STATE.filterSesion==='todos'?'selected':''}>Toda sesión</option>
-          ${STATE.sesiones.map(s=>`<option value="${esc(s)}" ${STATE.filterSesion===s?'selected':''}>${esc(s)}</option>`).join('')}
-        </select>
+        ${renderMultiFilter('sesiones', 'Toda sesión', STATE.sesiones, STATE.filterSesiones)}
+        ${renderMultiFilter('responsables', 'Todo responsable', STATE.directorio.filter(d=>d.rol!=='excelencia').map(d=>d.nombre), STATE.filterResponsables)}
         <select data-action="filter-tipo">
           <option value="todos" ${STATE.filterTipo==='todos'?'selected':''}>Todo tipo</option>
           ${STATE.tipos.map(t=>`<option value="${esc(t)}" ${STATE.filterTipo===t?'selected':''}>${esc(t)}</option>`).join('')}
@@ -1711,7 +1743,7 @@ function renderDetailView(){
           <h2>${p.numero!=null?'N°'+p.numero+' — ':''}${esc(p.nombre)}</h2>
           <div class="chip-row">
             <div class="mchip${canUpdate(p)?' qedit':''}" ${canUpdate(p)?`data-action="quick-edit-etapa" data-id="${p.id}" title="Clic para cambiar la etapa"`:''}><span class="mc-label">Etapa</span><span class="mc-value">${esc(p.etapa||'—')}</span></div>
-            <div class="mchip"><span class="mc-label">Sesión</span><span class="mc-value">${esc(p.sesion||'—')}</span></div>
+            <div class="mchip"><span class="mc-label">Sesiones</span><span class="mc-value">${(p.sesiones&&p.sesiones.length) ? esc(p.sesiones.join(', ')) : '—'}</span></div>
             <div class="mchip"><span class="mc-label">Tipo</span><span class="mc-value">${esc(p.tipoProyecto||'—')}</span></div>
             <div class="mchip"><span class="mc-label">KPI Driver</span><span class="mc-value">${esc(p.kpiDriver||'—')}</span></div>
             <div class="mchip"><span class="mc-label">Fecha inicio proyecto</span><span class="mc-value">${fmtDate(p.fechaInicio)}</span></div>
@@ -2010,7 +2042,7 @@ function renderTeamView(){
       <div style="margin-top:14px;"><button class="btn primary" data-action="add-area">+ Agregar área</button></div>
     </div>
   </div>
-  ${renderCategoryPanels(STATE.sesiones, {title:'Sesiones de seguimiento', addTitle:'Agregar sesión de seguimiento', placeholder:'Ej: Comité Directorio, Steerco Mensual', inputId:'ns-nombre', listAction:'remove-sesion', addAction:'add-sesion', fieldKey:'sesion'})}
+  ${renderCategoryPanels(STATE.sesiones, {title:'Sesiones de seguimiento', addTitle:'Agregar sesión de seguimiento', placeholder:'Ej: Comité Directorio, Steerco Mensual', inputId:'ns-nombre', listAction:'remove-sesion', addAction:'add-sesion', fieldKey:'sesiones'})}
   ${renderCategoryPanels(STATE.tipos, {title:'Tipos de proyecto', addTitle:'Agregar tipo de proyecto', placeholder:'Ej: Sustentación, Crecimiento, Reposición', inputId:'nt-nombre', listAction:'remove-tipo', addAction:'add-tipo', fieldKey:'tipoProyecto'})}
   ${renderCategoryPanels(STATE.kpiDrivers, {title:'KPI Drivers', addTitle:'Agregar KPI Driver', placeholder:'Ej: Producción, Costo, Seguridad', inputId:'nk-nombre', listAction:'remove-kpi', addAction:'add-kpi', fieldKey:'kpiDriver'})}
   <div class="panel">
@@ -2051,6 +2083,25 @@ function renderDuplicatesList(){
       <div class="follow-name" style="width:100%;margin-bottom:4px;">${esc(g[0].nombre)} <span style="color:var(--rojo);font-weight:700;">(${g.length} copias)</span></div>
       ${g.map(p=>`<button class="btn sm" data-action="open-detail" data-id="${p.id}">Abrir N°${p.numero} — creado ${p.historial&&p.historial[0]?fmtDate(p.historial[0].fecha):'—'}</button>`).join('')}
     </div>`).join('');
+}
+
+function renderMultiFilter(filterKey, allLabel, options, selected){
+  const label = selected.length===0 ? allLabel : (selected.length===1 ? selected[0] : selected.length+' seleccionados');
+  const isOpen = STATE.openMultiFilter === filterKey;
+  return `
+    <div class="multifilter">
+      <button type="button" class="multifilter-btn ${selected.length?'active':''}" data-action="mf-toggle" data-mf="${filterKey}">${esc(label)} <span class="mf-caret">${isOpen?'▴':'▾'}</span></button>
+      ${isOpen ? `
+        <div class="multifilter-panel">
+          ${options.length ? options.map(o=>`
+            <label class="mf-option">
+              <input type="checkbox" data-action="mf-check" data-mf="${filterKey}" value="${esc(o)}" ${selected.includes(o)?'checked':''}>
+              <span>${esc(o)}</span>
+            </label>`).join('') : '<div class="mf-empty">Sin opciones disponibles.</div>'}
+          ${selected.length ? `<button type="button" class="mf-clear" data-action="mf-clear" data-mf="${filterKey}">Limpiar selección</button>` : ''}
+        </div>
+      ` : ''}
+    </div>`;
 }
 
 /* ---------------- EVENT HANDLING ---------------- */
@@ -2101,7 +2152,16 @@ function handleAction(action, el){
     case 'filter-area': STATE.filterArea = el.value; render(); break;
     case 'filter-semaforo': STATE.filterSemaforo = el.value; render(); break;
     case 'filter-alerta': STATE.filterAlerta = el.value; render(); break;
-    case 'filter-sesion': STATE.filterSesion = el.value; render(); break;
+    case 'mf-toggle': STATE.openMultiFilter = (STATE.openMultiFilter === el.dataset.mf) ? null : el.dataset.mf; render(); break;
+    case 'mf-check': {
+      const arr = STATE[el.dataset.mf];
+      const v = el.value;
+      const i = arr.indexOf(v);
+      if(i === -1) arr.push(v); else arr.splice(i,1);
+      render();
+      break;
+    }
+    case 'mf-clear': STATE[el.dataset.mf] = []; render(); break;
     case 'filter-tipo': STATE.filterTipo = el.value; render(); break;
     case 'filter-kpi': STATE.filterKpi = el.value; render(); break;
     case 'sort-by': setSortBy(el.dataset.key); break;
@@ -2211,7 +2271,7 @@ function handleAction(action, el){
     }
     case 'remove-area': removeArea(Number(el.dataset.idx)); break;
     case 'add-sesion': addCategoryItem('sesiones', 'ns-nombre', saveSesiones); break;
-    case 'remove-sesion': removeCategoryItem('sesiones', Number(el.dataset.idx), 'sesion', saveSesiones); break;
+    case 'remove-sesion': removeCategoryItem('sesiones', Number(el.dataset.idx), 'sesiones', saveSesiones); break;
     case 'add-tipo': addCategoryItem('tipos', 'nt-nombre', saveTipos); break;
     case 'remove-tipo': removeCategoryItem('tipos', Number(el.dataset.idx), 'tipoProyecto', saveTipos); break;
     case 'add-kpi': addCategoryItem('kpiDrivers', 'nk-nombre', saveKpiDrivers); break;
@@ -2288,7 +2348,7 @@ async function removeCategoryItem(stateKey, idx, projectFieldKey, saveFn){
   if(!isExcelencia()) return;
   const valor = STATE[stateKey][idx];
   if(!valor) return;
-  const enUso = STATE.projects.some(p=>p[projectFieldKey]===valor);
+  const enUso = STATE.projects.some(p => Array.isArray(p[projectFieldKey]) ? p[projectFieldKey].includes(valor) : p[projectFieldKey]===valor);
   if(enUso){
     alert('No se puede quitar "'+valor+'": todavía hay proyectos que lo tienen asignado. Reasígnalos primero desde "Editar ficha".');
     return;
@@ -2369,7 +2429,7 @@ async function importProjectsFromJSON(file){
       ejecutado: Number(raw.ejecutado)||0,
       alerta: (raw.alerta && ['verde','ambar','rojo'].includes(raw.alerta.color)) ? {color:raw.alerta.color, comentario:raw.alerta.comentario||''} : {color:'verde', comentario:''},
       imagen: null,
-      sesion: (raw.sesion && STATE.sesiones.includes(raw.sesion)) ? raw.sesion : null,
+      sesiones: Array.isArray(raw.sesiones) ? raw.sesiones.filter(s=>STATE.sesiones.includes(s)) : (raw.sesion && STATE.sesiones.includes(raw.sesion) ? [raw.sesion] : []),
       tipoProyecto: (raw.tipoProyecto && STATE.tipos.includes(raw.tipoProyecto)) ? raw.tipoProyecto : null,
       kpiDriver: (raw.kpiDriver && STATE.kpiDrivers.includes(raw.kpiDriver)) ? raw.kpiDriver : null,
       hitos: Array.isArray(raw.hitos) ? raw.hitos.filter(h=>h && h.nombre).map(h=>({id:uid('h'), nombre:String(h.nombre), inicio:h.inicio||todayISO(), fin:h.fin||todayISO()})) : [],
@@ -2483,7 +2543,7 @@ function openProjectModal(project){
     fechaRequerimiento:todayISO(), fechaInicio:todayISO(), fechaTermino:todayISO(),
     avanceReal:0, avancePlan:0, estado:'activo', presupuesto:0, ejecutado:0,
     hitos:[], riesgos:[], apoyos:[], highlights:[], lowlights:[], historial:[], alerta:{color:'verde', comentario:''}, imagen:null,
-    sesion:null, tipoProyecto:null, kpiDriver:null
+    sesiones:[], tipoProyecto:null, kpiDriver:null
   };
 
   const body = `
@@ -2554,11 +2614,14 @@ function openProjectModal(project){
       <div class="subsection-title">Clasificación</div>
       <div class="form-grid">
         <div class="field">
-          <label>Sesión de seguimiento</label>
-          <select id="f-sesion">
-            <option value="">— Sin definir —</option>
-            ${STATE.sesiones.map(s=>`<option value="${esc(s)}" ${p.sesion===s?'selected':''}>${esc(s)}</option>`).join('')}
-          </select>
+          <label>Sesiones de seguimiento (puedes elegir varias)</label>
+          <div class="form-checkgroup" id="f-sesiones">
+            ${STATE.sesiones.length ? STATE.sesiones.map(s=>`
+              <label class="fc-option">
+                <input type="checkbox" value="${esc(s)}" ${(p.sesiones||[]).includes(s)?'checked':''}>
+                <span>${esc(s)}</span>
+              </label>`).join('') : '<div class="mf-empty">No hay sesiones definidas. Créalas en Administración → Sesiones.</div>'}
+          </div>
         </div>
         <div class="field">
           <label>Tipo de proyecto</label>
@@ -2756,7 +2819,7 @@ function openProjectModal(project){
         p.fechaRequerimiento = ov.querySelector('#f-freq').value;
         p.fechaInicio = ov.querySelector('#f-finicio').value;
         p.fechaTermino = ov.querySelector('#f-ftermino').value;
-        p.sesion = ov.querySelector('#f-sesion').value || null;
+        p.sesiones = Array.from(ov.querySelectorAll('#f-sesiones input:checked')).map(cb=>cb.value);
         p.tipoProyecto = ov.querySelector('#f-tipo').value || null;
         p.kpiDriver = ov.querySelector('#f-kpi').value || null;
         p.hitos = hitos.filter(h=>h.nombre.trim());
