@@ -178,14 +178,31 @@ tbody tr:last-child td{border-bottom:none;}
 .detail-meta b{color:var(--ink);font-weight:600;}
 
 /* meta chips - etiquetas de fácil lectura, en grilla fija (no se reacomodan según el texto) */
-.chip-row{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px;}
+.chip-row{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:10px;}
+
+.scurve-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
+@media(max-width:760px){.scurve-grid{grid-template-columns:1fr;}}
+.scurve-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+.scurve-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;}
+.scurve-card-head h3{font-family:var(--disp);font-size:12.5px;font-weight:700;}
+.scurve-card-head .btns{display:flex;gap:6px;}
+.scurve-svg{width:100%;height:auto;display:block;}
+.scurve-legend{display:flex;gap:14px;font-size:10.5px;color:var(--ink-soft);margin-top:4px;flex-wrap:wrap;}
+.scurve-legend .dot-legend{display:inline-block;width:7px;height:7px;border-radius:100px;margin-right:4px;}
+.scurve-empty{font-size:12px;color:var(--ink-faint);padding:24px 0;text-align:center;}
+
+.curva-form{max-height:320px;overflow-y:auto;border:1px solid var(--border-strong);border-radius:8px;margin-top:10px;}
+.curva-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 12px;border-bottom:1px solid var(--border);}
+.curva-row:last-child{border-bottom:none;}
+.curva-mes{font-size:12.5px;font-weight:600;text-transform:capitalize;}
+.curva-plan-input{width:110px;text-align:right;}
 .detail-actions-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-.mchip{display:flex;flex-direction:column;justify-content:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 12px;min-width:0;}
-.mchip .mc-label{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);font-weight:700;}
-.mchip .mc-value{font-size:13px;font-weight:700;color:var(--ink);margin-top:1px;white-space:normal;overflow-wrap:break-word;line-height:1.25;}
+.mchip{display:flex;flex-direction:column;justify-content:center;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:4px 9px;min-width:0;}
+.mchip .mc-label{font-size:8px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-faint);font-weight:700;}
+.mchip .mc-value{font-size:11px;font-weight:700;color:var(--ink);margin-top:1px;white-space:normal;overflow-wrap:break-word;line-height:1.2;}
 .mchip.full{grid-column:1 / -1;}
-.mchip.sem{flex-direction:row;align-items:center;gap:8px;}
-.mchip.sem .dot{width:11px;height:11px;flex-shrink:0;}
+.mchip.sem{flex-direction:row;align-items:center;gap:6px;}
+.mchip.sem .dot{width:9px;height:9px;flex-shrink:0;}
 .mchip.verde{background:var(--verde-tint);border-color:transparent;}
 .mchip.verde .mc-value{color:var(--verde);}
 .mchip.ambar{background:var(--ambar-tint);border-color:transparent;}
@@ -649,6 +666,103 @@ function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function daysBetween(a,b){ return Math.round((new Date(b) - new Date(a)) / 86400000); }
 function fmtDate(d){ if(!d) return '—'; const dt = new Date(d+'T00:00:00'); return dt.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'}); }
+
+const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fmtMes(mesStr){ // 'YYYY-MM' -> 'ene 2026'
+  if(!mesStr) return '—';
+  const [y,m] = mesStr.split('-').map(Number);
+  return `${MESES_CORTOS[m-1]} ${y}`;
+}
+function monthsBetween(fechaInicioISO, fechaTerminoISO){
+  if(!fechaInicioISO || !fechaTerminoISO) return [];
+  const out = [];
+  let [y,m] = fechaInicioISO.split('-').map(Number);
+  const [yEnd,mEnd] = fechaTerminoISO.split('-').map(Number);
+  let guard = 0;
+  while((y < yEnd || (y === yEnd && m <= mEnd)) && guard < 240){
+    out.push(`${y}-${pad(m)}`);
+    m++; if(m > 12){ m = 1; y++; }
+    guard++;
+  }
+  return out;
+}
+function recalcAvanceFromCurva(p){
+  /* Sincroniza los campos resumen (avanceReal, avancePlan, avanceFinanciero) con el
+     último dato real cargado en cada curva, para que el listado general y las
+     etiquetas superiores siempre reflejen la curva sin duplicar la fuente de verdad. */
+  const fisica = (p.curvaFisica||[]).filter(m=>m.real!=null).sort((a,b)=>a.mes.localeCompare(b.mes));
+  const ultimaFisica = fisica[fisica.length-1];
+  if(ultimaFisica){
+    p.avanceReal = ultimaFisica.real;
+    const planMismoMes = (p.curvaFisica||[]).find(m=>m.mes===ultimaFisica.mes);
+    p.avancePlan = planMismoMes ? (planMismoMes.plan||0) : (p.avancePlan||0);
+  }
+  const financiera = (p.curvaFinanciera||[]).filter(m=>m.real!=null).sort((a,b)=>a.mes.localeCompare(b.mes));
+  const ultimaFinanciera = financiera[financiera.length-1];
+  if(ultimaFinanciera && p.presupuesto){
+    p.ejecutado = ultimaFinanciera.real;
+    p.avanceFinanciero = Math.round((ultimaFinanciera.real / p.presupuesto) * 100);
+  }
+}
+
+function renderSCurveSVG(curva, opts){
+  const meses = [...(curva||[])].sort((a,b)=>a.mes.localeCompare(b.mes));
+  if(!meses.length){
+    return `<div class="scurve-empty">Sin curva configurada todavía.</div>`;
+  }
+  const W = 460, H = 190, padL = opts.unit==='$' ? 52 : 34, padR = 10, padT = 14, padB = 26;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const maxPlan = Math.max(...meses.map(m=>m.plan||0), 1);
+  const maxReal = Math.max(...meses.map(m=>m.real!=null?m.real:0), 0);
+  const maxY = opts.unit==='%' ? 100 : Math.max(maxPlan, maxReal, 1) * 1.05;
+  const x = i => padL + (meses.length===1 ? innerW/2 : (i/(meses.length-1)) * innerW);
+  const y = v => padT + innerH - (Math.max(0,Math.min(v,maxY))/maxY) * innerH;
+
+  const planPts = meses.map((m,i)=>`${x(i)},${y(m.plan||0)}`).join(' ');
+  const realMeses = meses.filter(m=>m.real!=null);
+  const realPts = realMeses.map(m=>{ const i = meses.findIndex(mm=>mm.mes===m.mes); return `${x(i)},${y(m.real)}`; }).join(' ');
+
+  const fmtVal = v => opts.unit==='%' ? `${Math.round(v)}%` : fmtMoneyShort(v);
+
+  const gridLines = [0,0.25,0.5,0.75,1].map(f => {
+    const yy = padT + innerH * (1-f);
+    const val = fmtVal(maxY*f);
+    return `<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--border)" stroke-width="1"/>
+            <text x="${padL-6}" y="${yy+3}" font-size="8.5" text-anchor="end" fill="var(--ink-faint)">${val}</text>`;
+  }).join('');
+
+  const xLabels = meses.map((m,i)=>{
+    if(meses.length > 8 && i % Math.ceil(meses.length/8) !== 0 && i !== meses.length-1) return '';
+    return `<text x="${x(i)}" y="${H-8}" font-size="8" text-anchor="middle" fill="var(--ink-faint)">${fmtMes(m.mes).replace(' ',"'").slice(0,6)}</text>`;
+  }).join('');
+
+  const dots = meses.map((m,i)=>{
+    let d = `<circle cx="${x(i)}" cy="${y(m.plan||0)}" r="2.3" fill="var(--navy)"/>`;
+    if(m.real!=null) d += `<circle cx="${x(i)}" cy="${y(m.real)}" r="2.6" fill="var(--ambar)"/>`;
+    return d;
+  }).join('');
+
+  const ultimo = realMeses[realMeses.length-1];
+
+  return `
+  <svg viewBox="0 0 ${W} ${H}" class="scurve-svg">
+    ${gridLines}
+    <polyline points="${planPts}" fill="none" stroke="var(--navy)" stroke-width="2"/>
+    ${realPts ? `<polyline points="${realPts}" fill="none" stroke="var(--ambar)" stroke-width="2.4"/>` : ''}
+    ${dots}
+    ${xLabels}
+  </svg>
+  <div class="scurve-legend">
+    <span><span class="dot-legend" style="background:var(--navy);"></span>Plan</span>
+    <span><span class="dot-legend" style="background:var(--ambar);"></span>Real${ultimo ? ` — ${fmtMes(ultimo.mes)}: ${fmtVal(ultimo.real)}` : ' — sin datos aún'}</span>
+  </div>`;
+}
+function fmtMoneyShort(v){
+  if(v >= 1e9) return '$' + (v/1e9).toFixed(1).replace('.0','') + 'B';
+  if(v >= 1e6) return '$' + (v/1e6).toFixed(1).replace('.0','') + 'M';
+  if(v >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
+  return '$' + Math.round(v);
+}
 function fmtBrecha(brecha){ const n = Number(brecha)||0; return (n>=0?'+':'') + n.toFixed(1) + '%'; }
 
 function buildTimeTicks(minD, maxD){
@@ -1622,6 +1736,7 @@ function renderListView(){
       <td>
         <div class="progress-mini"><div style="width:${Math.min(100,p.avanceReal||0)}%"></div></div>
         <div class="mono" style="font-size:11.5px;color:var(--ink-soft);margin-top:3px;">${p.avanceReal||0}% real / ${p.avancePlan||0}% plan</div>
+        ${p.avanceFinanciero!=null ? `<div class="mono" style="font-size:10px;color:var(--navy);margin-top:1px;">💰 ${p.avanceFinanciero}% financiero</div>` : ''}
       </td>
       <td><span class="brecha ${brecha>=0?'pos':'neg'}">${fmtBrecha(brecha)}</span></td>
       <td><span class="semaforo"><span class="dot ${sem}"></span></span></td>
@@ -1649,6 +1764,7 @@ function renderListView(){
         <span class="mono">${p.avanceReal||0}% real / ${p.avancePlan||0}% plan</span>
         <span class="brecha ${brecha>=0?'pos':'neg'}">${fmtBrecha(brecha)}</span>
       </div>
+      ${p.avanceFinanciero!=null ? `<div class="proj-card-row"><span class="mono" style="font-size:10.5px;color:var(--navy);">💰 ${p.avanceFinanciero}% avance financiero</span></div>` : ''}
       <div class="proj-card-row">
         <span class="mono">Térm. req: ${fmtDate(p.fechaRequerimiento)}</span>
         <span class="mono">Térm. proy: ${fmtDate(p.fechaTermino)}</span>
@@ -1824,9 +1940,34 @@ function renderDetailView(){
             <div class="mchip full"><span class="mc-label">Responsable</span><span class="mc-value">${esc(p.responsable)}</span></div>
             <div class="mchip"><span class="mc-label">Fecha de término requerida</span><span class="mc-value">${fmtDate(p.fechaRequerimiento)}</span></div>
             <div class="mchip sem ${sem}${canUpdate(p)?' qedit':''}" ${canUpdate(p)?`data-action="quick-edit-avance" data-id="${p.id}" title="Clic para actualizar el avance"`:''}><span class="dot ${sem}"></span><span><span class="mc-label" style="display:block;">Avance</span><span class="mc-value">${p.avanceReal||0}% / ${p.avancePlan||0}% (${fmtBrecha(brecha)})</span></span></div>
+            <div class="mchip"><span class="mc-label">Avance financiero</span><span class="mc-value">${p.avanceFinanciero!=null ? p.avanceFinanciero+'%' : '—'}</span></div>
             <div class="mchip sem ${al}${canUpdate(p)?' qedit':''}" ${canUpdate(p)?`data-action="quick-edit-alerta" data-id="${p.id}" title="Clic para cambiar la alerta"`:''}><span class="dot ${al}"></span><span><span class="mc-label" style="display:block;">Alerta</span><span class="mc-value">${al==='verde'?'Sin alerta':al==='ambar'?'Amarilla':'Roja'}</span></span></div>
             <div class="mchip"><span class="mc-label">Estado</span><span class="mc-value">${p.estado==='activo'?'Activo':'Archivado'}</span></div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Curvas de avance</h2>
+      ${canUpdate(p) ? `<button class="btn primary sm" data-action="curva-actualizar-mes" data-id="${p.id}">Actualizar mes</button>` : ''}
+    </div>
+    <div class="panel-body">
+      <div class="scurve-grid">
+        <div class="scurve-card">
+          <div class="scurve-card-head">
+            <h3>Avance físico (%)</h3>
+            ${canFullEdit(p) ? `<div class="btns"><button class="btn ghost sm" data-action="curva-configurar" data-tipo="fisica" data-id="${p.id}">${(p.curvaFisica&&p.curvaFisica.length)?'Editar plan':'Configurar plan'}</button></div>` : ''}
+          </div>
+          ${renderSCurveSVG(p.curvaFisica, {unit:'%'})}
+        </div>
+        <div class="scurve-card">
+          <div class="scurve-card-head">
+            <h3>Avance financiero</h3>
+            ${canFullEdit(p) ? `<div class="btns"><button class="btn ghost sm" data-action="curva-configurar" data-tipo="financiera" data-id="${p.id}">${(p.curvaFinanciera&&p.curvaFinanciera.length)?'Editar plan':'Configurar plan'}</button></div>` : ''}
+          </div>
+          ${renderSCurveSVG(p.curvaFinanciera, {unit:'$'})}
         </div>
       </div>
     </div>
@@ -2285,6 +2426,8 @@ function handleAction(action, el){
       });
       break;
     }
+    case 'curva-configurar': openConfigurarCurva(el.dataset.id, el.dataset.tipo); break;
+    case 'curva-actualizar-mes': openActualizarMes(el.dataset.id); break;
     case 'quick-edit-alerta': {
       const p = getProject(el.dataset.id); if(!p || !canUpdate(p)) break;
       const alerta = p.alerta || {color:'verde', comentario:''};
@@ -2331,7 +2474,7 @@ function handleAction(action, el){
         p[listKey].push({id:uid('x'), descripcion:texto});
       }
       logCambio(p, `Agregó un ítem a ${listKey}: "${texto}"`);
-      saveData().then(render);
+      saveProject(p).then(render);
       break;
     }
     case 'quick-del-item': {
@@ -2340,7 +2483,7 @@ function handleAction(action, el){
       const idx = Number(el.dataset.idx);
       if(!p[listKey] || !p[listKey][idx]) break;
       p[listKey].splice(idx,1);
-      saveData().then(render);
+      saveProject(p).then(render);
       break;
     }
     case 'remove-area': removeArea(Number(el.dataset.idx)); break;
@@ -2608,6 +2751,121 @@ function openModalShell(title, bodyHtml, onMount){
   return overlay;
 }
 
+function openConfigurarCurva(projectId, tipo){
+  const p = getProject(projectId);
+  if(!p || !canFullEdit(p)) return;
+  const esFisica = tipo === 'fisica';
+  const meses = monthsBetween(p.fechaInicio, p.fechaTermino);
+  if(!meses.length){
+    alert('Este proyecto no tiene fecha de inicio y/o término definidas. Complétalas en "Editar ficha" antes de configurar la curva.');
+    return;
+  }
+  const curvaKey = esFisica ? 'curvaFisica' : 'curvaFinanciera';
+  const existente = {};
+  (p[curvaKey]||[]).forEach(m => { existente[m.mes] = m; });
+  const unidad = esFisica ? '%' : '$';
+
+  const filas = meses.map(mes => {
+    const prev = existente[mes];
+    return `
+    <div class="curva-row">
+      <span class="curva-mes">${fmtMes(mes)}</span>
+      <input type="number" min="0" ${esFisica?'max="100"':''} step="${esFisica?'1':'1000'}" data-mes="${mes}" class="curva-plan-input" value="${prev && prev.plan!=null ? prev.plan : ''}" placeholder="${unidad}">
+    </div>`;
+  }).join('');
+
+  const overlay = openModalShell(
+    `Configurar plan — Avance ${esFisica?'físico':'financiero'}`,
+    `<div class="small-note" style="margin-top:0;">Ingresa el valor ACUMULADO planificado para cada mes (${esFisica?'ej: si en marzo debería ir en 25% del total, escribe 25':'ej: gasto acumulado esperado a esa fecha'}). Esto se carga normalmente una sola vez, al planificar el proyecto.</div>
+     <div class="curva-form">${filas}</div>
+     <div class="modal-foot">
+       <button class="btn ghost sm" data-close>Cancelar</button>
+       <button class="btn primary sm" id="curva-guardar">Guardar plan</button>
+     </div>`,
+    (ov) => {
+      ov.querySelector('#curva-guardar').onclick = async () => {
+        const nuevaCurva = meses.map(mes => {
+          const input = ov.querySelector(`.curva-plan-input[data-mes="${mes}"]`);
+          const val = input.value === '' ? null : Number(input.value);
+          const prev = existente[mes];
+          return { mes, plan: val, real: prev ? (prev.real!=null?prev.real:null) : null };
+        });
+        p[curvaKey] = nuevaCurva;
+        recalcAvanceFromCurva(p);
+        logCambio(p, `Configuró el plan de avance ${esFisica?'físico':'financiero'}`);
+        await saveProject(p);
+        ov.remove();
+        render();
+      };
+    }
+  );
+}
+
+function openActualizarMes(projectId){
+  const p = getProject(projectId);
+  if(!p || !canUpdate(p)) return;
+  const mesesFisica = (p.curvaFisica||[]).map(m=>m.mes);
+  const mesesFinanciera = (p.curvaFinanciera||[]).map(m=>m.mes);
+  const meses = [...new Set([...mesesFisica, ...mesesFinanciera])].sort();
+  if(!meses.length){
+    alert('Todavía no hay un plan configurado para este proyecto. Pídele a Excelencia Operacional (o a quien tenga edición completa) que configure el plan primero.');
+    return;
+  }
+  const hoy = todayISO().slice(0,7);
+  const mesDefault = meses.includes(hoy) ? hoy : meses[meses.length-1];
+  const fisicaMes = (p.curvaFisica||[]).find(m=>m.mes===mesDefault);
+  const financieraMes = (p.curvaFinanciera||[]).find(m=>m.mes===mesDefault);
+
+  const overlay = openModalShell(
+    'Actualizar avance del mes',
+    `<div class="field"><label>Mes</label>
+      <select id="am-mes">${meses.map(m=>`<option value="${m}" ${m===mesDefault?'selected':''}>${fmtMes(m)}</option>`).join('')}</select>
+     </div>
+     <div class="form-grid" style="margin-top:10px;">
+       <div class="field"><label>Avance físico real acumulado (%)</label><input type="number" min="0" max="100" id="am-fisico" value="${fisicaMes && fisicaMes.real!=null ? fisicaMes.real : ''}"></div>
+       <div class="field"><label>Gasto financiero real acumulado ($)</label><input type="number" min="0" id="am-financiero" value="${financieraMes && financieraMes.real!=null ? financieraMes.real : ''}"></div>
+     </div>
+     <div class="small-note">Ingresa el valor ACUMULADO a la fecha (no solo lo de este mes) — así la curva real queda comparable con la curva plan.</div>
+     <div class="modal-foot">
+       <button class="btn ghost sm" data-close>Cancelar</button>
+       <button class="btn primary sm" id="am-guardar">Guardar</button>
+     </div>`,
+    (ov) => {
+      const mesSelect = ov.querySelector('#am-mes');
+      function refill(){
+        const mes = mesSelect.value;
+        const fm = (p.curvaFisica||[]).find(m=>m.mes===mes);
+        const fn = (p.curvaFinanciera||[]).find(m=>m.mes===mes);
+        ov.querySelector('#am-fisico').value = fm && fm.real!=null ? fm.real : '';
+        ov.querySelector('#am-financiero').value = fn && fn.real!=null ? fn.real : '';
+      }
+      mesSelect.onchange = refill;
+      ov.querySelector('#am-guardar').onclick = async () => {
+        const mes = mesSelect.value;
+        const valFisico = ov.querySelector('#am-fisico').value;
+        const valFinanciero = ov.querySelector('#am-financiero').value;
+        if(valFisico !== ''){
+          p.curvaFisica = p.curvaFisica || [];
+          let m = p.curvaFisica.find(x=>x.mes===mes);
+          if(!m){ m = {mes, plan:null, real:null}; p.curvaFisica.push(m); }
+          m.real = Math.max(0, Math.min(100, Number(valFisico)));
+        }
+        if(valFinanciero !== ''){
+          p.curvaFinanciera = p.curvaFinanciera || [];
+          let m = p.curvaFinanciera.find(x=>x.mes===mes);
+          if(!m){ m = {mes, plan:null, real:null}; p.curvaFinanciera.push(m); }
+          m.real = Math.max(0, Number(valFinanciero));
+        }
+        recalcAvanceFromCurva(p);
+        logCambio(p, `Actualizó avance de ${fmtMes(mes)}`);
+        await saveProject(p);
+        ov.remove();
+        render();
+      };
+    }
+  );
+}
+
 function openProjectModal(project){
   const isNew = !project;
   if(!isNew && !canUpdate(project)) return;
@@ -2619,7 +2877,8 @@ function openProjectModal(project){
     fechaRequerimiento:todayISO(), fechaInicio:todayISO(), fechaTermino:todayISO(),
     avanceReal:0, avancePlan:0, estado:'activo', presupuesto:0, ejecutado:0,
     hitos:[], riesgos:[], apoyos:[], highlights:[], lowlights:[], historial:[], alerta:{color:'verde', comentario:''}, imagen:null,
-    sesiones:[], tipoProyecto:null, kpiDriver:null
+    sesiones:[], tipoProyecto:null, kpiDriver:null,
+    curvaFisica:[], curvaFinanciera:[]
   };
 
   const body = `
