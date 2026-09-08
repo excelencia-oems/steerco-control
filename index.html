@@ -2938,7 +2938,8 @@ function openCargarReal(projectId, tipo){
         });
         p[curvaKey] = curva;
         recalcAvanceFromCurva(p);
-        logCambio(p, `Cargó avance real ${esFisica?'físico':'financiero'} de varios meses`);
+        const esSemanal = curva.length && curva[0].mes.length > 7;
+        logCambio(p, `Cargó avance real ${esFisica?'físico':'financiero'} de varios periodos (${esSemanal?'semanal':'mensual'})`);
         await saveProject(p);
         ov.remove();
         render();
@@ -3785,7 +3786,7 @@ function getTutorialSteps(){
     { title:'Crea un proyecto', text:'Desde aquí agregas un nuevo proyecto. Si tu perfil es de un área específica, se crea automáticamente asociado a esa área.', view:'list', selector:'[data-action="open-new"]' },
     { title:'El listado de proyectos', text:'Cada fila muestra el avance físico 📐 y financiero 💰 con su barra, brecha y semáforo — además de hace cuánto se actualizó el proyecto por última vez. Haz clic en cualquiera para abrir su ficha completa.', view:'list', selectors:['.table-scroll','.proj-card-list'] },
     { title:'Detalle de un proyecto', text:'Aquí ves la ficha completa: highlights, lowlights, principales riesgos, requerimientos de apoyo y presupuesto. A continuación, lo más importante: las curvas de avance.', view:'detail', selector:'.detail-header' },
-    { title:'Curvas de avance', text:'Dos curvas S: avance físico y financiero, cada una con su línea de Plan y de Real. "Configurar plan" (una sola vez, Excelencia) define la meta mes a mes. "Cargar real" (cualquiera con acceso al proyecto) registra el avance real acumulado — puedes completar varios meses a la vez.', view:'detail', selector:'.scurve-grid' },
+    { title:'Curvas de avance', text:'Dos curvas S: avance físico y financiero, cada una con su línea de Plan y de Real. "Configurar plan" (Excelencia) define la meta por periodo — puedes elegir si quieres el detalle Mensual o Semanal. "Cargar real" (cualquiera con acceso al proyecto) registra el avance real acumulado para esos mismos periodos — puedes completar varios a la vez.', view:'detail', selector:'.scurve-grid' },
     { title:'Línea de Tiempo', text:'Compara de un vistazo las fechas de inicio y término de todos los proyectos activos, en una carta Gantt general.', view:'timeline', selector:'.timeline-wrap' },
     { title:'Seguimiento de actualización', text:'Muestra hace cuántos días actualizó cada responsable sus proyectos — verde al día, amarillo para revisar, rojo atrasado.', view:'seguimiento', selector:'.panel' },
   ];
