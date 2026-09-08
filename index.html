@@ -149,7 +149,7 @@ th.sortable,span.sortable{cursor:pointer;user-select:none;}
 th.sortable:hover,span.sortable:hover{color:var(--navy);}
 .timeline-sort-row{display:flex;gap:18px;margin:4px 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);}
 .timeline-num{font-family:var(--mono);color:var(--ink-faint);font-weight:600;margin-right:2px;}
-tbody td{padding:11px 10px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px;}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px;}
 tbody tr{cursor:pointer;transition:.1s;}
 tbody tr:hover{background:var(--navy-tint);}
 tbody tr:last-child td{border-bottom:none;}
@@ -163,7 +163,7 @@ tbody tr:last-child td{border-bottom:none;}
 .dot.rojo{background:var(--rojo);}
 .brecha{font-family:var(--mono);font-weight:600;}
 .avance-row{display:flex;align-items:flex-start;gap:6px;}
-.avance-row .avance-icon{font-size:11px;line-height:1.6;flex-shrink:0;}
+.avance-row .avance-icon{font-size:11px;line-height:1.4;flex-shrink:0;}
 .avance-row-body{flex:1;min-width:0;}
 .brecha.pos{color:var(--verde);}
 .brecha.neg{color:var(--rojo);}
@@ -673,8 +673,12 @@ function fmtDate(d){ if(!d) return '—'; const dt = new Date(d+'T00:00:00'); re
 
 const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function pad(n){ return String(n).padStart(2,'0'); }
-function fmtMes(mesStr){ // 'YYYY-MM' -> 'ene 2026'
+function fmtMes(mesStr){ // 'YYYY-MM' -> 'ene 2026'  |  'YYYY-MM-DD' (lunes de la semana) -> 'Sem 02 feb'
   if(!mesStr) return '—';
+  if(mesStr.length > 7){
+    const dt = new Date(mesStr+'T00:00:00');
+    return `Sem ${pad(dt.getDate())} ${MESES_CORTOS[dt.getMonth()]}`;
+  }
   const [y,m] = mesStr.split('-').map(Number);
   return `${MESES_CORTOS[m-1]} ${y}`;
 }
@@ -687,6 +691,25 @@ function monthsBetween(fechaInicioISO, fechaTerminoISO){
   while((y < yEnd || (y === yEnd && m <= mEnd)) && guard < 240){
     out.push(`${y}-${pad(m)}`);
     m++; if(m > 12){ m = 1; y++; }
+    guard++;
+  }
+  return out;
+}
+function mondayOf(dt){
+  const day = dt.getDay(); // 0=domingo … 6=sábado
+  const diff = (day===0 ? -6 : 1-day);
+  const m = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()+diff);
+  return m;
+}
+function weeksBetween(fechaInicioISO, fechaTerminoISO){
+  if(!fechaInicioISO || !fechaTerminoISO) return [];
+  const out = [];
+  let cursor = mondayOf(new Date(fechaInicioISO+'T00:00:00'));
+  const end = new Date(fechaTerminoISO+'T00:00:00');
+  let guard = 0;
+  while(cursor <= end && guard < 520){
+    out.push(`${cursor.getFullYear()}-${pad(cursor.getMonth()+1)}-${pad(cursor.getDate())}`);
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()+7);
     guard++;
   }
   return out;
@@ -1744,7 +1767,6 @@ function renderListView(){
       <td class="mono" style="color:var(--ink-faint);">${p.numero!=null?'#'+p.numero:'—'}</td>
       <td>
         <div class="proj-name">${esc(p.nombre)}</div>
-        <div class="proj-area">${esc(p.responsable)} · Etapa: ${esc(p.etapa||'—')}</div>
       </td>
       <td class="mono">${fmtDate(p.fechaRequerimiento)}</td>
       <td class="mono">${fmtDate(p.fechaTermino)}</td>
@@ -1753,7 +1775,7 @@ function renderListView(){
           <span class="avance-icon">📐</span>
           <div class="avance-row-body">
             <div class="progress-mini"><div style="width:${Math.min(100,p.avanceReal||0)}%"></div></div>
-            <div class="mono" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">${p.avanceReal||0}% real / ${p.avancePlan||0}% plan</div>
+            <div class="mono" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">${p.avanceReal||0}% / ${p.avancePlan||0}%</div>
           </div>
         </div>
         ${tieneFin ? `
@@ -1761,7 +1783,7 @@ function renderListView(){
           <span class="avance-icon">💰</span>
           <div class="avance-row-body">
             <div class="progress-mini"><div style="width:${Math.min(100,p.avanceFinanciero||0)}%"></div></div>
-            <div class="mono" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">${p.avanceFinanciero}% real / ${p.avancePlanFinanciero||0}% plan</div>
+            <div class="mono" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">${p.avanceFinanciero}% / ${p.avancePlanFinanciero||0}%</div>
           </div>
         </div>` : ''}
       </td>
@@ -1799,7 +1821,7 @@ function renderListView(){
         <div class="avance-row-body">
           <div class="progress-mini"><div style="width:${Math.min(100,p.avanceReal||0)}%"></div></div>
           <div class="proj-card-row" style="margin-top:2px;">
-            <span class="mono">${p.avanceReal||0}% real / ${p.avancePlan||0}% plan</span>
+            <span class="mono">${p.avanceReal||0}% / ${p.avancePlan||0}%</span>
             <span class="brecha ${brecha>=0?'pos':'neg'}">${fmtBrecha(brecha)}</span>
           </div>
         </div>
@@ -1810,7 +1832,7 @@ function renderListView(){
         <div class="avance-row-body">
           <div class="progress-mini"><div style="width:${Math.min(100,p.avanceFinanciero||0)}%"></div></div>
           <div class="proj-card-row" style="margin-top:2px;">
-            <span class="mono">${p.avanceFinanciero}% real / ${p.avancePlanFinanciero||0}% plan</span>
+            <span class="mono">${p.avanceFinanciero}% / ${p.avancePlanFinanciero||0}%</span>
             <span class="brecha ${brechaFin>=0?'pos':'neg'}">${fmtBrecha(brechaFin)}</span>
           </div>
         </div>
@@ -2798,47 +2820,81 @@ function openConfigurarCurva(projectId, tipo){
   const p = getProject(projectId);
   if(!p || !canFullEdit(p)) return;
   const esFisica = tipo === 'fisica';
-  const meses = monthsBetween(p.fechaInicio, p.fechaTermino);
-  if(!meses.length){
+  const curvaKey = esFisica ? 'curvaFisica' : 'curvaFinanciera';
+  const existenteArr = p[curvaKey]||[];
+  const existenteMap = {};
+  existenteArr.forEach(m => { existenteMap[m.mes] = m; });
+  const frecInicial = (existenteArr.length && existenteArr[0].mes.length > 7) ? 'semanal' : 'mensual';
+  const unidad = esFisica ? '%' : '$';
+
+  function periodosPara(frecuencia){
+    return frecuencia === 'semanal' ? weeksBetween(p.fechaInicio, p.fechaTermino) : monthsBetween(p.fechaInicio, p.fechaTermino);
+  }
+  function filasHtml(periodos){
+    return periodos.map(mes => {
+      const prev = existenteMap[mes];
+      return `
+      <div class="curva-row">
+        <span class="curva-mes">${fmtMes(mes)}</span>
+        <input type="number" min="0" max="${esFisica?100:(p.presupuesto||'')}" step="${esFisica?'1':'1000'}" data-mes="${mes}" class="curva-plan-input" value="${prev && prev.plan!=null ? prev.plan : ''}" placeholder="${unidad}">
+      </div>`;
+    }).join('');
+  }
+
+  const periodosIniciales = periodosPara(frecInicial);
+  if(!periodosIniciales.length){
     alert('Este proyecto no tiene fecha de inicio y/o término definidas. Complétalas en "Editar ficha" antes de configurar la curva.');
     return;
   }
-  const curvaKey = esFisica ? 'curvaFisica' : 'curvaFinanciera';
-  const existente = {};
-  (p[curvaKey]||[]).forEach(m => { existente[m.mes] = m; });
-  const unidad = esFisica ? '%' : '$';
-
-  const filas = meses.map(mes => {
-    const prev = existente[mes];
-    return `
-    <div class="curva-row">
-      <span class="curva-mes">${fmtMes(mes)}</span>
-      <input type="number" min="0" max="${esFisica?100:(p.presupuesto||'')}" step="${esFisica?'1':'1000'}" data-mes="${mes}" class="curva-plan-input" value="${prev && prev.plan!=null ? prev.plan : ''}" placeholder="${unidad}">
-    </div>`;
-  }).join('');
 
   const overlay = openModalShell(
     `Configurar plan — Avance ${esFisica?'físico':'financiero'}`,
-    `<div class="small-note" style="margin-top:0;">Ingresa el valor ACUMULADO planificado para cada mes (${esFisica?'ej: si en marzo debería ir en 25% del total, escribe 25':'ej: gasto acumulado esperado a esa fecha'}). Esto se carga normalmente una sola vez, al planificar el proyecto.</div>
-     <div class="curva-form">${filas}</div>
+    `<div class="small-note" style="margin-top:0;">Ingresa el valor ACUMULADO planificado para cada periodo (${esFisica?'ej: si en ese periodo debería ir en 25% del total, escribe 25':'ej: gasto acumulado esperado a esa fecha'}). Esto se carga normalmente una sola vez, al planificar el proyecto.</div>
+     <div class="freq-toggle" style="display:flex;gap:8px;margin:10px 0;">
+       <button type="button" class="btn sm" id="freq-mensual">Mensual</button>
+       <button type="button" class="btn sm" id="freq-semanal">Semanal</button>
+     </div>
+     <div class="curva-form" id="curva-form-container">${filasHtml(periodosIniciales)}</div>
      <div class="modal-foot">
        <button class="btn ghost sm" data-close>Cancelar</button>
        <button class="btn primary sm" id="curva-guardar">Guardar plan</button>
      </div>`,
     (ov) => {
+      let frecuenciaActual = frecInicial;
+      let periodosActuales = periodosIniciales;
+      const btnMensual = ov.querySelector('#freq-mensual');
+      const btnSemanal = ov.querySelector('#freq-semanal');
+
+      function pintarToggle(){
+        btnMensual.classList.toggle('primary', frecuenciaActual==='mensual');
+        btnSemanal.classList.toggle('primary', frecuenciaActual==='semanal');
+      }
+      function cambiarFrecuencia(nueva){
+        if(nueva === frecuenciaActual) return;
+        const nuevosPeriodos = periodosPara(nueva);
+        if(!nuevosPeriodos.length){ alert('No se pudo calcular periodos semanales/mensuales para las fechas de este proyecto.'); return; }
+        frecuenciaActual = nueva;
+        periodosActuales = nuevosPeriodos;
+        ov.querySelector('#curva-form-container').innerHTML = filasHtml(periodosActuales);
+        pintarToggle();
+      }
+      pintarToggle();
+      btnMensual.onclick = () => cambiarFrecuencia('mensual');
+      btnSemanal.onclick = () => cambiarFrecuencia('semanal');
+
       ov.querySelector('#curva-guardar').onclick = async () => {
-        const nuevaCurva = meses.map(mes => {
+        const nuevaCurva = periodosActuales.map(mes => {
           const input = ov.querySelector(`.curva-plan-input[data-mes="${mes}"]`);
           let val = input.value === '' ? null : Number(input.value);
           if(val != null){
             val = esFisica ? Math.max(0, Math.min(100, val)) : Math.max(0, Math.min(p.presupuesto||val, val));
           }
-          const prev = existente[mes];
+          const prev = existenteMap[mes];
           return { mes, plan: val, real: prev ? (prev.real!=null?prev.real:null) : null };
         });
         p[curvaKey] = nuevaCurva;
         recalcAvanceFromCurva(p);
-        logCambio(p, `Configuró el plan de avance ${esFisica?'físico':'financiero'}`);
+        logCambio(p, `Configuró el plan de avance ${esFisica?'físico':'financiero'} (${frecuenciaActual})`);
         await saveProject(p);
         ov.remove();
         render();
@@ -2867,7 +2923,7 @@ function openCargarReal(projectId, tipo){
 
   const overlay = openModalShell(
     `Cargar real — Avance ${esFisica?'físico':'financiero'}`,
-    `<div class="small-note" style="margin-top:0;">Ingresa el valor ACUMULADO real a la fecha para cada mes que corresponda (puedes completar varios meses a la vez). Deja en blanco los meses que aún no tienen dato.</div>
+    `<div class="small-note" style="margin-top:0;">Ingresa el valor ACUMULADO real a la fecha para cada periodo que corresponda (puedes completar varios a la vez). Deja en blanco los que aún no tienen dato.</div>
      <div class="curva-form">${filas}</div>
      <div class="modal-foot">
        <button class="btn ghost sm" data-close>Cancelar</button>
